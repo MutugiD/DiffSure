@@ -12,5 +12,12 @@ architecture, delivery, and acceptance.
 - [Documentation conventions](conventions.md)
 - [End-to-end delivery plan](delivery-plan.md)
 
-Detailed architecture, workflows, decisions, product requirements, and the
-feature catalogue are added in the next two sequential pull requests.
+## Architecture
+
+- [System architecture](architecture.md)
+- [Runtime workflows](workflows.md)
+- [Threat model](threat-model.md)
+- [Architecture decisions](decisions/README.md)
+
+Product requirements and the feature catalogue follow in the next sequential
+pull request.
