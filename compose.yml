@@ -1,16 +1,39 @@
 services:
   diffsure:
+    image: ${DIFFSURE_IMAGE:-diffsure:local}
     build: .
     ports:
       - "8000:8000"
     environment:
       DIFFSURE_PROVIDER: ${DIFFSURE_PROVIDER:-ollama}
       DIFFSURE_MODEL: ${DIFFSURE_MODEL:-qwen3:8b}
-      DIFFSURE_PROVIDER_URL: ${DIFFSURE_PROVIDER_URL:-http://host.docker.internal:11434}
       DIFFSURE_ACCEPTANCE_IMAGE: ${DIFFSURE_ACCEPTANCE_IMAGE:-acceptance:latest}
+      DIFFSURE_CAPACITY: ${DIFFSURE_CAPACITY:-3}
+      DIFFSURE_PROVIDER_CAPACITY: ${DIFFSURE_PROVIDER_CAPACITY:-1}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - ${DOCKER_GID:-0}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
     restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  ollama-data:

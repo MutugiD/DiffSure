@@ -12,9 +12,10 @@ The project is delivered documentation-first. Begin with the
 
 ## Status
 
-The Python service foundation exposes dependency diagnostics and `GET /health`.
-The `/solve` workflow is delivered incrementally through subsequent pull
-requests.
+The Python service exposes dependency diagnostics, capacity-aware `GET /health`,
+and the complete fail-closed `POST /solve` workflow. Every returned diff has
+passed static validation, repository and independent checks, and a separate
+fresh-copy delivery gate.
 
 ## Delivery policy
 
@@ -43,6 +44,10 @@ Run diagnostics or start the service:
 uv run diffsure doctor
 uv run diffsure serve
 ```
+
+For Compose, provider modes, published images, the public harness,
+troubleshooting, and cost controls, follow the
+[operational runbooks](documentation/runbooks.md).
 
 For a containerized development smoke test that does not probe host services,
 set `DIFFSURE_HEALTH_SKIP_EXTERNAL=1`. This flag is not intended for deployed

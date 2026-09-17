@@ -13,26 +13,53 @@ permissions:
 jobs:
   preflight:
     runs-on: ubuntu-latest
-    outputs:
-      dockerfile: ${{ steps.detect.outputs.dockerfile }}
     steps:
       - uses: actions/checkout@v7
-      - id: detect
-        name: Detect service image definition
-        shell: bash
+      - name: Validate delivery inputs
         run: |
-          if test -f Dockerfile; then
-            echo "dockerfile=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "dockerfile=false" >> "$GITHUB_OUTPUT"
-          fi
+          test -f Dockerfile
+          test -f compose.yml
+          test -f compose.ollama.yml
+          docker compose -f compose.yml config --quiet
+          docker compose -f compose.yml -f compose.ollama.yml --profile ollama config --quiet
 
   container:
     needs: preflight
-    if: ${{ needs.preflight.outputs.dockerfile == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build image for scan and smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: diffsure:scan
+          cache-from: type=gha,scope=service
+          cache-to: type=gha,mode=max,scope=service
+      - name: Scan image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: diffsure:scan
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Smoke test local image
+        run: |
+          docker run --detach --name diffsure-scan --publish 18001:8000 \
+            --env DIFFSURE_HEALTH_SKIP_EXTERNAL=1 diffsure:scan
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:18001/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs diffsure-scan
+          exit 1
+      - name: Stop local image
+        if: always()
+        run: docker rm --force diffsure-scan || true
       - name: Log in to GitHub Container Registry
         if: ${{ github.event_name != 'pull_request' }}
         uses: docker/login-action@v4
@@ -40,9 +67,47 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and publish immutable image
+      - name: Generate image metadata
+        if: ${{ github.event_name != 'pull_request' }}
+        id: metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/mutugid/diffsure
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=raw,value=edge,enable={{is_default_branch}}
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+          labels: |
+            org.opencontainers.image.title=DiffSure
+            org.opencontainers.image.description=Independently verified repository patch service
+      - name: Publish image with provenance and SBOM
+        if: ${{ github.event_name != 'pull_request' }}
+        id: publish
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ghcr.io/mutugid/diffsure:${{ github.sha }}
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha,scope=service
+          provenance: mode=max
+          sbom: true
+      - name: Smoke test published commit image
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          docker pull ghcr.io/mutugid/diffsure:${{ github.sha }}
+          docker run --detach --name diffsure-published --publish 18002:8000 \
+            --env DIFFSURE_HEALTH_SKIP_EXTERNAL=1 \
+            ghcr.io/mutugid/diffsure:${{ github.sha }}
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:18002/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs diffsure-published
+          exit 1
+      - name: Stop published image
+        if: ${{ always() && github.event_name != 'pull_request' }}
+        run: docker rm --force diffsure-published || true

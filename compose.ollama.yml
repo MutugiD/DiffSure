@@ -1,0 +1,8 @@
+services:
+  diffsure:
+    environment:
+      DIFFSURE_PROVIDER: ollama
+      DIFFSURE_PROVIDER_URL: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
