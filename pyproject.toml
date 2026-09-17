@@ -43,3 +43,4 @@ files = ["src", "tests"]
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers --cov=diffsure --cov-report=term-missing --cov-fail-under=90"
 testpaths = ["tests"]
+markers = ["docker: exercises the networkless acceptance container"]
