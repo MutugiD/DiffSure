@@ -41,7 +41,12 @@ def test_missing_tools_are_not_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(DependencyProbe, "_provider_ready", lambda _self: False)
     health = DependencyProbe(settings()).inspect()
     assert not health.ready
-    assert health.checks == {"git": False, "docker": False, "provider": False}
+    assert health.checks == {
+        "git": False,
+        "docker": False,
+        "acceptance_image": False,
+        "provider": False,
+    }
 
 
 def test_docker_probe_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -59,6 +64,12 @@ def test_docker_probe_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("diffsure.health.subprocess.run", timeout)
     assert not DependencyProbe._docker_ready()
+
+
+def test_acceptance_image_probe(monkeypatch: pytest.MonkeyPatch) -> None:
+    success: subprocess.CompletedProcess[bytes] = subprocess.CompletedProcess([], 0)
+    monkeypatch.setattr("diffsure.health.subprocess.run", lambda *args, **kwargs: success)
+    assert DependencyProbe(settings())._image_ready()
 
 
 def test_ollama_probe_failure(monkeypatch: pytest.MonkeyPatch) -> None:

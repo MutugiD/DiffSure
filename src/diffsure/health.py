@@ -46,11 +46,12 @@ class DependencyProbe:
 
     def inspect(self) -> Health:
         if self.settings.health_skip_external:
-            checks = {"git": True, "docker": True, "provider": True}
+            checks = {"git": True, "docker": True, "acceptance_image": True, "provider": True}
         else:
             checks = {
                 "git": shutil.which("git") is not None,
                 "docker": self._docker_ready(),
+                "acceptance_image": self._image_ready(),
                 "provider": self._provider_ready(),
             }
         return Health(
@@ -69,6 +70,20 @@ class DependencyProbe:
         try:
             result = subprocess.run(
                 ["docker", "info", "--format", "{{.ServerVersion}}"],
+                capture_output=True,
+                timeout=3,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return result.returncode == 0
+
+    def _image_ready(self) -> bool:
+        if shutil.which("docker") is None:
+            return False
+        try:
+            result = subprocess.run(
+                ["docker", "image", "inspect", self.settings.acceptance_image],
                 capture_output=True,
                 timeout=3,
                 check=False,

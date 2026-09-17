@@ -1,10 +1,15 @@
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.title="DiffSure" \
+      org.opencontainers.image.description="Independently verified repository patch service" \
+      org.opencontainers.image.source="https://github.com/MutugiD/DiffSure" \
+      org.opencontainers.image.licenses="MIT"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends docker.io git \
+ && apt-get install -y --no-install-recommends docker-cli git \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
