@@ -10,6 +10,7 @@ from contextlib import contextmanager
 import pytest
 
 from diffsure.config import Settings
+from diffsure.domain import RequestError, SolveResponse, Usage
 from diffsure.health import Health
 from diffsure.server import DiffSureServer, create_server
 
@@ -22,10 +23,21 @@ class StaticProbe:
         return Health(self.ready, "ollama", "model", "image", 3, {"git": self.ready})
 
 
+class StaticSolver:
+    def __init__(self, error: RequestError | None = None) -> None:
+        self.error = error
+
+    def solve(self, payload: object) -> SolveResponse:
+        if self.error is not None:
+            raise self.error
+        assert isinstance(payload, dict)
+        return SolveResponse("id", None, (), Usage("ollama", "model"))
+
+
 @contextmanager
-def running(ready: bool) -> Iterator[str]:
+def running(ready: bool, solver: StaticSolver | None = None) -> Iterator[str]:
     settings = Settings("127.0.0.1", 0, "ollama", "model", "url", "image", 3, False)
-    server = create_server(settings, StaticProbe(ready))
+    server = create_server(settings, StaticProbe(ready), solver or StaticSolver())
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -61,3 +73,29 @@ def test_unknown_route(method: str) -> None:
 def test_server_properties() -> None:
     assert DiffSureServer.daemon_threads
     assert DiffSureServer.allow_reuse_address
+
+
+def test_solve_route() -> None:
+    with running(True) as url:
+        request = urllib.request.Request(
+            f"{url}/solve", data=b"{}", headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(request) as response:
+            assert response.status == 200
+            assert json.load(response)["request_id"] == "id"
+
+
+def test_solve_invalid_json() -> None:
+    with running(True) as url:
+        request = urllib.request.Request(f"{url}/solve", data=b"{")
+        with pytest.raises(urllib.error.HTTPError) as raised:
+            urllib.request.urlopen(request)
+        assert raised.value.code == 400
+
+
+def test_solve_maps_request_error() -> None:
+    with running(True, StaticSolver(RequestError("bad archive", 422))) as url:
+        request = urllib.request.Request(f"{url}/solve", data=b"{}")
+        with pytest.raises(urllib.error.HTTPError) as raised:
+            urllib.request.urlopen(request)
+        assert raised.value.code == 422

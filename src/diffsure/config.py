@@ -40,6 +40,11 @@ class Settings:
     acceptance_image: str
     capacity: int
     health_skip_external: bool
+    max_request_bytes: int = 35_000_000
+    max_archive_bytes: int = 25_000_000
+    max_extracted_bytes: int = 100_000_000
+    max_archive_entries: int = 10_000
+    max_path_depth: int = 32
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -59,4 +64,15 @@ class Settings:
             acceptance_image=os.environ.get("DIFFSURE_ACCEPTANCE_IMAGE", "acceptance:latest"),
             capacity=_integer("DIFFSURE_CAPACITY", 3, 1, 64),
             health_skip_external=_boolean("DIFFSURE_HEALTH_SKIP_EXTERNAL"),
+            max_request_bytes=_integer(
+                "DIFFSURE_MAX_REQUEST_BYTES", 35_000_000, 1_000, 200_000_000
+            ),
+            max_archive_bytes=_integer(
+                "DIFFSURE_MAX_ARCHIVE_BYTES", 25_000_000, 1_000, 100_000_000
+            ),
+            max_extracted_bytes=_integer(
+                "DIFFSURE_MAX_EXTRACTED_BYTES", 100_000_000, 1_000, 500_000_000
+            ),
+            max_archive_entries=_integer("DIFFSURE_MAX_ARCHIVE_ENTRIES", 10_000, 1, 100_000),
+            max_path_depth=_integer("DIFFSURE_MAX_PATH_DEPTH", 32, 2, 128),
         )
