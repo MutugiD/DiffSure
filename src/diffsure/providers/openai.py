@@ -29,8 +29,8 @@ class OpenAIProvider:
     ) -> ModelTurn:
         payload: dict[str, object] = {
             "model": self.model,
-            "input": messages,
-            "tools": tools,
+            "input": _responses_input(messages),
+            "tools": _responses_tools(tools),
             "store": False,
         }
         value = post_json(
@@ -84,3 +84,79 @@ class OpenAIProvider:
 
 def _nonnegative_int(value: object) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
+def _responses_tools(tools: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Translate provider-neutral Chat-style tools to Responses API tools."""
+    normalized: list[dict[str, object]] = []
+    for tool in tools:
+        function = tool.get("function")
+        if tool.get("type") != "function" or not isinstance(function, dict):
+            raise ProviderError("OpenAI tool definition is invalid")
+        name = function.get("name")
+        parameters = function.get("parameters")
+        if not isinstance(name, str) or not isinstance(parameters, dict):
+            raise ProviderError("OpenAI tool definition is invalid")
+        item: dict[str, object] = {
+            "type": "function",
+            "name": name,
+            "parameters": parameters,
+        }
+        description = function.get("description")
+        if isinstance(description, str):
+            item["description"] = description
+        normalized.append(item)
+    return normalized
+
+
+def _responses_input(messages: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Translate tool-loop history to Responses API input items."""
+    normalized: list[dict[str, object]] = []
+    for message in messages:
+        role = message.get("role")
+        if role in {"user", "system", "developer"}:
+            normalized.append({"role": role, "content": message.get("content", "")})
+            continue
+        if role == "assistant":
+            content = message.get("content")
+            if isinstance(content, str) and content:
+                normalized.append({"role": "assistant", "content": content})
+            calls = message.get("tool_calls", [])
+            if not isinstance(calls, list):
+                raise ProviderError("OpenAI assistant tool calls are invalid")
+            for call in calls:
+                if not isinstance(call, dict) or not isinstance(call.get("function"), dict):
+                    raise ProviderError("OpenAI assistant tool call is invalid")
+                function = call["function"]
+                call_id = call.get("id")
+                name = function.get("name")
+                arguments = function.get("arguments", {})
+                if not isinstance(call_id, str) or not isinstance(name, str):
+                    raise ProviderError("OpenAI assistant tool call is invalid")
+                normalized.append(
+                    {
+                        "type": "function_call",
+                        "call_id": call_id,
+                        "name": name,
+                        "arguments": (
+                            arguments
+                            if isinstance(arguments, str)
+                            else json.dumps(arguments, separators=(",", ":"))
+                        ),
+                    }
+                )
+            continue
+        if role == "tool":
+            call_id = message.get("tool_call_id")
+            if not isinstance(call_id, str):
+                raise ProviderError("OpenAI tool result is invalid")
+            normalized.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": str(message.get("content", "")),
+                }
+            )
+            continue
+        raise ProviderError("OpenAI message role is invalid")
+    return normalized

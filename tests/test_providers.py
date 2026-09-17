@@ -69,9 +69,11 @@ def test_ollama_rejects_malformed_turn(
 
 
 def test_openai_normalizes_turn_and_cost(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "diffsure.providers.openai.post_json",
-        lambda *_args, **_kwargs: {
+    captured: dict[str, object] = {}
+
+    def respond(_url: str, payload: dict[str, object], *_args: object) -> dict[str, object]:
+        captured.update(payload)
+        return {
             "output": [
                 {"type": "message", "content": [{"type": "output_text", "text": "done"}]},
                 {
@@ -82,12 +84,61 @@ def test_openai_normalizes_turn_and_cost(monkeypatch: pytest.MonkeyPatch) -> Non
                 },
             ],
             "usage": {"input_tokens": 1_000_000, "output_tokens": 1_000_000},
-        },
+        }
+
+    monkeypatch.setattr(
+        "diffsure.providers.openai.post_json",
+        respond,
     )
-    turn = OpenAIProvider("https://api.example/v1/", "gpt-5.6-terra", "key").complete([], [], 2)
+    messages = [
+        {"role": "user", "content": "inspect"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "prior-call",
+                    "type": "function",
+                    "function": {"name": "list_files", "arguments": {}},
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": "prior-call", "content": "README.md"},
+    ]
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "list_files",
+                "description": "List files",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    ]
+    turn = OpenAIProvider("https://api.example/v1/", "gpt-5.6-terra", "key").complete(
+        messages, tools, 2
+    )
     assert turn.text == "done"
     assert turn.tool_calls[0].arguments == {"path": "README.md"}
     assert turn.usage.estimated_cost_usd == 14.0
+    assert captured["tools"] == [
+        {
+            "type": "function",
+            "name": "list_files",
+            "description": "List files",
+            "parameters": {"type": "object", "properties": {}},
+        }
+    ]
+    assert captured["input"] == [
+        {"role": "user", "content": "inspect"},
+        {
+            "type": "function_call",
+            "call_id": "prior-call",
+            "name": "list_files",
+            "arguments": "{}",
+        },
+        {"type": "function_call_output", "call_id": "prior-call", "output": "README.md"},
+    ]
 
 
 def test_openai_requires_key_and_valid_output(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -96,6 +147,21 @@ def test_openai_requires_key_and_valid_output(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr("diffsure.providers.openai.post_json", lambda *_args, **_kwargs: {})
     with pytest.raises(ProviderError):
         OpenAIProvider("url", "model", "key").complete([], [], 1)
+
+
+@pytest.mark.parametrize(
+    ("messages", "tools"),
+    [
+        ([{"role": "unknown", "content": "x"}], []),
+        ([], [{"type": "function"}]),
+        ([{"role": "tool", "content": "x"}], []),
+    ],
+)
+def test_openai_rejects_invalid_request_contract(
+    messages: list[dict[str, object]], tools: list[dict[str, object]]
+) -> None:
+    with pytest.raises(ProviderError):
+        OpenAIProvider("url", "model", "key").complete(messages, tools, 1)
 
 
 def test_provider_factory(monkeypatch: pytest.MonkeyPatch) -> None:
