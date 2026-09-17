@@ -12,9 +12,7 @@ TEXT_SUFFIXES = {".md", ".py", ".toml", ".yml", ".yaml", ".sh", ".txt"}
 
 def main() -> int:
     failures: list[str] = []
-    result = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True
-    )
+    result = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True)
     for raw in result.stdout.split(b"\0"):
         if not raw:
             continue
