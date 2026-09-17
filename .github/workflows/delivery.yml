@@ -1,0 +1,46 @@
+name: delivery
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      dockerfile: ${{ steps.detect.outputs.dockerfile }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        name: Detect service image definition
+        shell: bash
+        run: |
+          if test -f Dockerfile; then
+            echo "dockerfile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dockerfile=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  container:
+    needs: preflight
+    if: ${{ needs.preflight.outputs.dockerfile == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish immutable image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/mutugid/diffsure:${{ github.sha }}
