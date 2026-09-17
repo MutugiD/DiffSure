@@ -31,7 +31,22 @@ only evidence required by the operating policy.
 
 ## Contract evolution
 
-Add a versioned endpoint for breaking wire changes. Keep the current endpoint
-and serializer unchanged during a deprecation window, translate both versions
-into the same domain request, and publish compatibility fixtures before routing
-traffic to the new version.
+The current contract identifier is `v1`. Responses include
+`X-DiffSure-Contract: v1`; callers may send the same header, while unknown
+versions fail deterministically before solve execution. Add a versioned endpoint
+for breaking wire changes, keep the current serializer during a deprecation
+window, and publish compatibility fixtures before routing traffic to a new
+version.
+
+## Runtime capacity and metrics
+
+Solve admission and provider concurrency are independent. The service admits up
+to `DIFFSURE_CAPACITY` isolated requests; `DIFFSURE_PROVIDER_CAPACITY` bounds
+simultaneous model calls and defaults to one for Ollama. Readiness becomes false
+while all solve slots are occupied or shutdown is in progress.
+
+The synchronized operational snapshot contains request outcomes, phase counts
+and latency, deadline pressure, candidate and repair counts, verification
+outcomes, provider tokens, elapsed time, and estimated cost. It contains no
+repository content, prompts, diffs, credentials, or host paths. A production
+exporter can translate this snapshot to the deployment's monitoring system.
