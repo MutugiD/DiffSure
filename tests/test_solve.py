@@ -118,13 +118,15 @@ def test_returns_diff_only_after_candidate_and_clean_delivery_pass(tmp_path: Pat
     assert response.diff is not None
     assert "-VALUE = 1\n+VALUE = 2\n" in response.diff
     assert sandbox.calls == 5
-    assert response.usage.input_tokens == 7
+    assert response.usage.input_tokens == 10
     phases = [item.get("phase") for item in response.record if "phase" in item]
     assert phases == [
         "baseline",
         "test_design",
         "static_gate",
         "candidate_gate",
+        "static_gate",
+        "selection",
         "delivery_gate",
     ]
 

@@ -47,3 +47,22 @@ def test_agent_stops_at_turn_limit(tmp_path: Path) -> None:
 
     result = run_agent(Endless(), RepositoryTools(tmp_path), "fix", 1, max_turns=2)
     assert result.turns == 2
+
+
+def test_agent_does_not_start_turn_after_cutoff(tmp_path: Path) -> None:
+    class Counting(FakeProvider):
+        def complete(self, messages, tools, timeout):  # type: ignore[no-untyped-def]
+            self.turn += 1
+            return ModelTurn(tool_calls=(ToolCall("call", "list_files", {}),))
+
+    provider = Counting()
+    values = iter((1.0, 0.0))
+    result = run_agent(
+        provider,
+        RepositoryTools(tmp_path),
+        "fix",
+        5,
+        remaining=lambda: next(values),
+    )
+    assert provider.turn == 1
+    assert result.turns == 1
