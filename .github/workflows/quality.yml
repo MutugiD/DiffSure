@@ -2,7 +2,6 @@ name: quality
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 permissions:
@@ -12,13 +11,33 @@ jobs:
   repository-policy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Validate repository policy and documentation
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: python tools/check_repository.py
+
+  documentation-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Validate documentation links and structure
+        run: python tools/check_documentation.py
+
+  text-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Validate UTF-8 and LF text files
+        run: python tools/check_text_files.py
