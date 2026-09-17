@@ -90,7 +90,7 @@ def test_openai_normalizes_turn_and_cost(monkeypatch: pytest.MonkeyPatch) -> Non
         "diffsure.providers.openai.post_json",
         respond,
     )
-    messages = [
+    messages: list[dict[str, object]] = [
         {"role": "user", "content": "inspect"},
         {
             "role": "assistant",
@@ -105,7 +105,7 @@ def test_openai_normalizes_turn_and_cost(monkeypatch: pytest.MonkeyPatch) -> Non
         },
         {"role": "tool", "tool_call_id": "prior-call", "content": "README.md"},
     ]
-    tools = [
+    tools: list[dict[str, object]] = [
         {
             "type": "function",
             "function": {
