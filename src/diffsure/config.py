@@ -40,6 +40,7 @@ class Settings:
     acceptance_image: str
     capacity: int
     health_skip_external: bool
+    provider_capacity: int = 1
     max_request_bytes: int = 35_000_000
     max_archive_bytes: int = 25_000_000
     max_extracted_bytes: int = 100_000_000
@@ -55,6 +56,7 @@ class Settings:
         url_default = (
             "http://127.0.0.1:11434" if provider == "ollama" else "https://api.openai.com/v1"
         )
+        capacity = _integer("DIFFSURE_CAPACITY", 3, 1, 64)
         return cls(
             host=os.environ.get("DIFFSURE_HOST", "0.0.0.0"),
             port=_integer("DIFFSURE_PORT", 8000, 1, 65535),
@@ -62,8 +64,14 @@ class Settings:
             model=os.environ.get("DIFFSURE_MODEL", model_default),
             provider_url=os.environ.get("DIFFSURE_PROVIDER_URL", url_default).rstrip("/"),
             acceptance_image=os.environ.get("DIFFSURE_ACCEPTANCE_IMAGE", "acceptance:latest"),
-            capacity=_integer("DIFFSURE_CAPACITY", 3, 1, 64),
+            capacity=capacity,
             health_skip_external=_boolean("DIFFSURE_HEALTH_SKIP_EXTERNAL"),
+            provider_capacity=_integer(
+                "DIFFSURE_PROVIDER_CAPACITY",
+                1 if provider == "ollama" else capacity,
+                1,
+                64,
+            ),
             max_request_bytes=_integer(
                 "DIFFSURE_MAX_REQUEST_BYTES", 35_000_000, 1_000, 200_000_000
             ),

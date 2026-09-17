@@ -76,7 +76,7 @@ def test_unknown_route(method: str) -> None:
 
 
 def test_server_properties() -> None:
-    assert DiffSureServer.daemon_threads
+    assert not DiffSureServer.daemon_threads
     assert DiffSureServer.allow_reuse_address
 
 
@@ -96,6 +96,17 @@ def test_solve_invalid_json() -> None:
         with pytest.raises(urllib.error.HTTPError) as raised:
             urllib.request.urlopen(request)
         assert raised.value.code == 400
+
+
+def test_solve_rejects_unknown_contract_version() -> None:
+    with running(True) as url:
+        request = urllib.request.Request(
+            f"{url}/solve", data=b"{}", headers={"X-DiffSure-Contract": "v2"}
+        )
+        with pytest.raises(urllib.error.HTTPError) as raised:
+            urllib.request.urlopen(request)
+        assert raised.value.code == 400
+        assert json.load(raised.value) == {"error": "unsupported_contract_version"}
 
 
 def test_solve_maps_request_error() -> None:

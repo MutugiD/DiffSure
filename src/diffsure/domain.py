@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+CONTRACT_VERSION = "v1"
 
 
 class RequestError(ValueError):

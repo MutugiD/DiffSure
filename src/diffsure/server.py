@@ -8,22 +8,35 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from diffsure.config import Settings
-from diffsure.domain import RequestError
-from diffsure.health import DependencyProbe, Probe
+from diffsure.domain import CONTRACT_VERSION, RequestError
+from diffsure.health import CapacityProbe, DependencyProbe, Probe
+from diffsure.operations import CapacityError, CapacityManager, ManagedSolver, OperationalMetrics
 from diffsure.solve import IngestionSolver, Solver
 
 
 class DiffSureServer(ThreadingHTTPServer):
-    daemon_threads = True
+    daemon_threads = False
     allow_reuse_address = True
 
     def __init__(
-        self, address: tuple[str, int], probe: Probe, solver: Solver, max_request_bytes: int
+        self,
+        address: tuple[str, int],
+        probe: Probe,
+        solver: Solver,
+        max_request_bytes: int,
+        capacity: CapacityManager,
+        metrics: OperationalMetrics,
     ) -> None:
         self.probe = probe
         self.solver = solver
         self.max_request_bytes = max_request_bytes
+        self.capacity = capacity
+        self.metrics = metrics
         super().__init__(address, RequestHandler)
+
+    def shutdown(self) -> None:
+        self.capacity.close()
+        super().shutdown()
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -52,6 +65,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "request_too_large"})
             return
         body = self.rfile.read(length)
+        requested_contract = self.headers.get("X-DiffSure-Contract", CONTRACT_VERSION)
+        if requested_contract != CONTRACT_VERSION:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": "unsupported_contract_version"})
+            return
         try:
             payload = json.loads(body)
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -59,6 +76,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
         try:
             response = self.server.solver.solve(payload)
+        except CapacityError:
+            self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "capacity_unavailable"})
+            return
         except RequestError as exc:
             self._json(HTTPStatus(exc.status), {"error": str(exc)})
             return
@@ -74,6 +94,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         payload = json.dumps(body, separators=(",", ":")).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("X-DiffSure-Contract", CONTRACT_VERSION)
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -82,9 +103,14 @@ class RequestHandler(BaseHTTPRequestHandler):
 def create_server(
     settings: Settings, probe: Probe | None = None, solver: Solver | None = None
 ) -> DiffSureServer:
+    capacity = CapacityManager(settings.capacity)
+    metrics = OperationalMetrics()
+    managed = ManagedSolver(solver or IngestionSolver(settings), capacity, metrics)
     return DiffSureServer(
         (settings.host, settings.port),
-        probe or DependencyProbe(settings),
-        solver or IngestionSolver(settings),
+        CapacityProbe(probe or DependencyProbe(settings), capacity),
+        managed,
         settings.max_request_bytes,
+        capacity,
+        metrics,
     )

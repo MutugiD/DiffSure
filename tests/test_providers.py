@@ -6,6 +6,7 @@ import urllib.error
 
 import pytest
 
+from diffsure.provider_concurrency import ConcurrentProvider
 from diffsure.provider_factory import create_provider
 from diffsure.providers import OllamaProvider, OpenAIProvider, ProviderError
 from diffsure.providers.http import post_json
@@ -98,6 +99,6 @@ def test_openai_requires_key_and_valid_output(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_provider_factory(monkeypatch: pytest.MonkeyPatch) -> None:
-    assert isinstance(create_provider(settings()), OllamaProvider)
+    assert isinstance(create_provider(settings()), ConcurrentProvider)
     monkeypatch.setenv("OPENAI_API_KEY", "key")
-    assert isinstance(create_provider(settings(provider="openai")), OpenAIProvider)
+    assert isinstance(create_provider(settings(provider="openai")), ConcurrentProvider)

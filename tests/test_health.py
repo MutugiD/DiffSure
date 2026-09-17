@@ -6,7 +6,8 @@ import urllib.error
 import pytest
 
 from diffsure.config import Settings
-from diffsure.health import DependencyProbe, Health
+from diffsure.health import CapacityProbe, DependencyProbe, Health
+from diffsure.operations import CapacityManager
 
 
 def settings(**changes: object) -> Settings:
@@ -73,3 +74,18 @@ def test_openai_probe_requires_key(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not DependencyProbe(settings(provider="openai"))._provider_ready()
     monkeypatch.setenv("OPENAI_API_KEY", "present")
     assert DependencyProbe(settings(provider="openai"))._provider_ready()
+
+
+def test_capacity_probe_becomes_not_ready_when_full() -> None:
+    class Ready:
+        def inspect(self) -> Health:
+            return Health(True, "fake", "model", "image", 1, {"provider": True})
+
+    capacity = CapacityManager(1)
+    probe = CapacityProbe(Ready(), capacity)
+    assert probe.inspect().ready
+    with capacity.admit():
+        health = probe.inspect()
+        assert not health.ready
+        assert health.capacity == 0
+        assert not health.checks["capacity"]
