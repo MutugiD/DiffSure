@@ -83,3 +83,27 @@ jobs:
       - name: Stop service image
         if: always()
         run: docker rm --force diffsure-ci
+
+  acceptance-sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install uv==0.10.9
+      - run: uv sync --locked --all-groups
+      - uses: docker/setup-buildx-action@v4
+      - name: Build acceptance image
+        uses: docker/build-push-action@v7
+        with:
+          context: acceptance
+          load: true
+          tags: acceptance:latest
+          cache-from: type=gha,scope=acceptance
+          cache-to: type=gha,mode=max,scope=acceptance
+      - name: Verify supported toolchains in the sandbox
+        env:
+          DIFFSURE_DOCKER_TEST: "1"
+        run: uv run pytest -m docker --no-cov
