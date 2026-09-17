@@ -8,15 +8,21 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from diffsure.config import Settings
+from diffsure.domain import RequestError
 from diffsure.health import DependencyProbe, Probe
+from diffsure.solve import IngestionSolver, Solver
 
 
 class DiffSureServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address: tuple[str, int], probe: Probe) -> None:
+    def __init__(
+        self, address: tuple[str, int], probe: Probe, solver: Solver, max_request_bytes: int
+    ) -> None:
         self.probe = probe
+        self.solver = solver
+        self.max_request_bytes = max_request_bytes
         super().__init__(address, RequestHandler)
 
 
@@ -33,7 +39,30 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._json(status, health.as_dict())
 
     def do_POST(self) -> None:
-        self._json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+        if self.path != "/solve":
+            self._json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+            return
+        raw_length = self.headers.get("Content-Length", "")
+        try:
+            length = int(raw_length)
+        except ValueError:
+            self._json(HTTPStatus.LENGTH_REQUIRED, {"error": "content_length_required"})
+            return
+        if length <= 0 or length > self.server.max_request_bytes:
+            self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "request_too_large"})
+            return
+        body = self.rfile.read(length)
+        try:
+            payload = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid_json"})
+            return
+        try:
+            response = self.server.solver.solve(payload)
+        except RequestError as exc:
+            self._json(HTTPStatus(exc.status), {"error": str(exc)})
+            return
+        self._json(HTTPStatus.OK, response.as_dict())
 
     def log_message(self, format: str, *args: Any) -> None:
         return
@@ -47,5 +76,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
 
-def create_server(settings: Settings, probe: Probe | None = None) -> DiffSureServer:
-    return DiffSureServer((settings.host, settings.port), probe or DependencyProbe(settings))
+def create_server(
+    settings: Settings, probe: Probe | None = None, solver: Solver | None = None
+) -> DiffSureServer:
+    return DiffSureServer(
+        (settings.host, settings.port),
+        probe or DependencyProbe(settings),
+        solver or IngestionSolver(settings),
+        settings.max_request_bytes,
+    )
