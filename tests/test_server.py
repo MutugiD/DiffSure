@@ -34,6 +34,11 @@ class StaticSolver:
         return SolveResponse("id", None, (), Usage("ollama", "model"))
 
 
+class BrokenSolver:
+    def solve(self, payload: object) -> SolveResponse:
+        raise RuntimeError("repository secret must not escape")
+
+
 @contextmanager
 def running(ready: bool, solver: StaticSolver | None = None) -> Iterator[str]:
     settings = Settings("127.0.0.1", 0, "ollama", "model", "url", "image", 3, False)
@@ -99,3 +104,12 @@ def test_solve_maps_request_error() -> None:
         with pytest.raises(urllib.error.HTTPError) as raised:
             urllib.request.urlopen(request)
         assert raised.value.code == 422
+
+
+def test_solve_sanitizes_unexpected_error() -> None:
+    with running(True, BrokenSolver()) as url:  # type: ignore[arg-type]
+        request = urllib.request.Request(f"{url}/solve", data=b"{}")
+        with pytest.raises(urllib.error.HTTPError) as raised:
+            urllib.request.urlopen(request)
+        assert raised.value.code == 500
+        assert json.load(raised.value) == {"error": "internal_error"}

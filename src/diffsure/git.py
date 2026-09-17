@@ -55,3 +55,23 @@ def apply_check(repo: Path, diff: bytes, timeout: float) -> str | None:
     if result.returncode == 0:
         return None
     return "diff does not apply cleanly: " + result.stderr.decode(errors="replace")[:500]
+
+
+def apply_diff(repo: Path, diff: bytes, timeout: float) -> str | None:
+    error = apply_check(repo, diff, timeout)
+    if error is not None:
+        return error
+    try:
+        result = subprocess.run(
+            ["git", "apply", "--whitespace=nowarn", "-"],
+            cwd=repo,
+            input=diff,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"git apply failed: {type(exc).__name__}"
+    if result.returncode == 0:
+        return None
+    return "diff application failed: " + result.stderr.decode(errors="replace")[:500]

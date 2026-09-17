@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from diffsure.git import apply_check, static_diff_error
+from diffsure.git import apply_check, apply_diff, static_diff_error
 
 VALID = (
     b"diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"
@@ -51,6 +51,14 @@ def test_apply_check(tmp_path: Path) -> None:
     subprocess.run(["git", "add", "file.txt"], cwd=tmp_path, check=True)
     assert apply_check(tmp_path, VALID, 2) is None
     assert "does not apply" in (apply_check(tmp_path, VALID.replace(b"old", b"missing"), 2) or "")
+
+
+def test_apply_diff_changes_clean_repository(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "file.txt").write_bytes(b"old\n")
+    subprocess.run(["git", "add", "file.txt"], cwd=tmp_path, check=True)
+    assert apply_diff(tmp_path, VALID, 2) is None
+    assert (tmp_path / "file.txt").read_bytes() == b"new\n"
 
 
 def test_apply_check_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

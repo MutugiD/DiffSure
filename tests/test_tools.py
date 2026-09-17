@@ -50,6 +50,16 @@ def test_patch_and_diff(tmp_path: Path) -> None:
     assert tools.dispatch("apply_patch", {"diff": "bad"}).is_error
 
 
+def test_diff_includes_new_and_deleted_files(tmp_path: Path) -> None:
+    tools = repository(tmp_path)
+    (tmp_path / "source.txt").unlink()
+    (tmp_path / "created.txt").write_bytes(b"created\n")
+    diff = tools.dispatch("git_diff", {}).output
+    assert "deleted file mode" in diff
+    assert "new file mode" in diff
+    assert "+created" in diff
+
+
 def test_requests_and_unknown_tool(tmp_path: Path) -> None:
     tools = repository(tmp_path)
     assert not tools.dispatch("request_repository_tests", {}).is_error

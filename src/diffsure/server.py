@@ -62,6 +62,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         except RequestError as exc:
             self._json(HTTPStatus(exc.status), {"error": str(exc)})
             return
+        except Exception:
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal_error"})
+            return
         self._json(HTTPStatus.OK, response.as_dict())
 
     def log_message(self, format: str, *args: Any) -> None:
