@@ -1,0 +1,16 @@
+services:
+  diffsure:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DIFFSURE_PROVIDER: ${DIFFSURE_PROVIDER:-ollama}
+      DIFFSURE_MODEL: ${DIFFSURE_MODEL:-qwen3:8b}
+      DIFFSURE_PROVIDER_URL: ${DIFFSURE_PROVIDER_URL:-http://host.docker.internal:11434}
+      DIFFSURE_ACCEPTANCE_IMAGE: ${DIFFSURE_ACCEPTANCE_IMAGE:-acceptance:latest}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped

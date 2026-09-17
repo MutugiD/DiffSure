@@ -12,9 +12,9 @@ The project is delivered documentation-first. Begin with the
 
 ## Status
 
-The repository is in its documentation and delivery-foundation phase. The HTTP
-service and solver are introduced only after the architecture and product
-requirements have been accepted.
+The Python service foundation exposes dependency diagnostics and `GET /health`.
+The `/solve` workflow is delivered incrementally through subsequent pull
+requests.
 
 ## Delivery policy
 
@@ -26,8 +26,27 @@ be green and free of unresolved blocking review before it is squash-merged to
 ## Development
 
 Python 3.12, `uv`, Git, Docker, and the supplied `acceptance:latest` image are
-the intended toolchain. Detailed commands will be added with the application
-bootstrap.
+the intended toolchain.
+
+```text
+uv sync --locked --all-groups
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy
+uv run pytest
+uv build
+```
+
+Run diagnostics or start the service:
+
+```text
+uv run diffsure doctor
+uv run diffsure serve
+```
+
+For a containerized development smoke test that does not probe host services,
+set `DIFFSURE_HEALTH_SKIP_EXTERNAL=1`. This flag is not intended for deployed
+readiness checks.
 
 ## License
 

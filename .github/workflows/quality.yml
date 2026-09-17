@@ -41,3 +41,45 @@ jobs:
           python-version: "3.12"
       - name: Validate UTF-8 and LF text files
         run: python tools/check_text_files.py
+
+  application-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install uv==0.10.9
+      - run: uv sync --locked --all-groups
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run mypy
+      - run: uv run pytest
+      - run: uv build
+      - run: uv run pip-audit
+
+  service-image-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build service image
+        run: docker build -t diffsure:ci .
+      - name: Start service image
+        run: >-
+          docker run --detach --name diffsure-ci --publish 18000:8000
+          --env DIFFSURE_HEALTH_SKIP_EXTERNAL=1 diffsure:ci
+      - name: Wait for readiness
+        shell: bash
+        run: |
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:18000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs diffsure-ci
+          exit 1
+      - name: Stop service image
+        if: always()
+        run: docker rm --force diffsure-ci
