@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from diffsure.providers import ModelTurn, Provider, TokenUsage
@@ -22,13 +23,17 @@ def run_agent(
     instructions: str,
     timeout: float,
     max_turns: int = 12,
+    remaining: Callable[[], float] | None = None,
 ) -> AgentResult:
     messages: list[dict[str, object]] = [{"role": "user", "content": instructions}]
     record: list[dict[str, object]] = []
     usage = TokenUsage()
     final_text = ""
     for turn_number in range(1, max_turns + 1):
-        turn = provider.complete(messages, tools.definitions(), timeout)
+        turn_timeout = timeout if remaining is None else min(timeout, remaining())
+        if turn_timeout <= 0:
+            return AgentResult(final_text, tuple(record), usage, turn_number - 1)
+        turn = provider.complete(messages, tools.definitions(), turn_timeout)
         usage += turn.usage
         if turn.text:
             final_text = turn.text
