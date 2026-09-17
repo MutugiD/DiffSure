@@ -141,6 +141,26 @@ class RepositoryTools:
         return ToolResult("Patch applied.")
 
     def _git_diff(self) -> str:
+        untracked = (
+            subprocess.run(
+                ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+                cwd=self.root,
+                capture_output=True,
+                timeout=10,
+                check=True,
+            )
+            .stdout.decode("utf-8")
+            .split("\0")
+        )
+        paths = [path for path in untracked if path]
+        for offset in range(0, len(paths), 100):
+            subprocess.run(
+                ["git", "add", "--intent-to-add", "--", *paths[offset : offset + 100]],
+                cwd=self.root,
+                capture_output=True,
+                timeout=10,
+                check=True,
+            )
         result = subprocess.run(
             ["git", "diff", "--no-ext-diff", "--no-color"],
             cwd=self.root,
