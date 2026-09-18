@@ -26,3 +26,4 @@ architecture, delivery, and acceptance.
 - [Requirement traceability](traceability.md)
 - [Production evolution](production.md)
 - [Operational runbooks](runbooks.md)
+- [Paid OpenAI model validation with Codex CLI](codex-validation-runbook.md)

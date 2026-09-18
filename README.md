@@ -49,6 +49,10 @@ For Compose, provider modes, published images, the public harness,
 troubleshooting, and cost controls, follow the
 [operational runbooks](documentation/runbooks.md).
 
+The assessment-safe hosted-model benchmark and its reproducible Codex CLI workflow
+are recorded in [public acceptance results](results.md) and the
+[Codex validation runbook](documentation/codex-validation-runbook.md).
+
 For a containerized development smoke test that does not probe host services,
 set `DIFFSURE_HEALTH_SKIP_EXTERNAL=1`. This flag is not intended for deployed
 readiness checks.
